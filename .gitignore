@@ -5,3 +5,6 @@
 !build.zig.zon
 !src
 !src/*
+!assets
+!assets/*
+!assets/**/* 
