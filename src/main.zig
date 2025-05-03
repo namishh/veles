@@ -1,6 +1,31 @@
 const rl = @import("raylib");
 const std = @import("std");
 
+const default = 10;
+
+// Animation IDS
+// 2 == Death
+// 3 == Idle
+// 4 == MeleeAttack1
+// 5 == MeleeAttack2
+// 6 == MeleeAttack3
+// 7 == MeleeAttackCombo
+// 8 == MeleeBack
+// 9 == MeleeForward
+// 10 == MeleeIdle
+// 11 == MeleeLeft
+// 12 == MeleeRight
+// 13 == PistolLeft
+// 14 == PistolRight
+// 15 == PrimaryBack
+// 16 == PrimaryForward
+// 17 == PrimaryIdle
+// 18 == SecondaryBack
+// 19 == SecondaryForward
+// 20 == SecondaryIdle
+// 21 == SecondaryLeft
+// 22 == SecondaryRight
+
 pub const Player = struct {
     camera: rl.Camera3D,
     position: rl.Vector3,
@@ -11,31 +36,11 @@ pub const Player = struct {
     cameraDistance: f32,
 
     model: rl.Model,
+    textture: rl.Texture,
     animations: []rl.ModelAnimation,
-    // animation names
-    // [0] - death
-    // [1] - gun shoot
-    // [2] and [3] - hit receive
-    // [4] - idle
-    // [5] - idle with gun
-    // [6] - idle gun point
-    // [7] - idle gun shoot
-    // [8] - idle neutral
-    // [9] - idle melee
-    // [10] - idle interact
-    // [11], [12] - kick left, right
-    // [13], [14] - punch left, right
-    // [15] - roll
-    // [16] - run back
-    // [17] - run forward
-    // [18] - run left
-    // [19] - run right
-    // [20] - run and gun
-    // [21] - sword slash
-    // [22] - walk
-
-    currentAnimation: u32 = 4,
+    currentAnimation: u32 = default,
     currentFrame: f32 = 0.0,
+    animationSpeed: f32,
 
     pub fn init() !Player {
         const pos = rl.Vector3{ .x = 0.0, .y = 0.0, .z = 0.0 };
@@ -49,8 +54,13 @@ pub const Player = struct {
             .z = pos.z - dir.z * dist,
         };
 
-        const modelPath = "assets/models/main.m3d";
-        const model = try rl.loadModel(modelPath);
+        const modelPath = "assets/models/mc.m3d";
+        var model = try rl.loadModel(modelPath);
+
+        const texturePath = "assets/textures/mc.png";
+        const texture = try rl.loadTexture(texturePath);
+
+        model.materials[0].maps[@intFromEnum(rl.MATERIAL_MAP_DIFFUSE)].texture = texture;
 
         const animations = try rl.loadModelAnimations(modelPath);
 
@@ -66,14 +76,16 @@ pub const Player = struct {
 
         return Player{
             .camera = camera,
+            .textture = texture,
             .position = pos,
             .rotation = rot,
             .direction = dir,
-            .speed = 0.1,
-            .sensitivity = 0.003,
+            .speed = 8.0,
+            .sensitivity = 0.008,
             .cameraDistance = dist,
             .model = model,
             .animations = animations,
+            .animationSpeed = 60.0,
         };
     }
 
@@ -83,14 +95,13 @@ pub const Player = struct {
 
         const angle = std.math.atan2(dirX, dirZ);
 
-        rl.drawModelEx(self.model, self.position, rl.Vector3{ .x = 0.0, .y = 1.0, .z = 0.0 }, angle * (180.0 / std.math.pi), // Convert radians to degrees
-            rl.Vector3{ .x = 1.0, .y = 1.0, .z = 1.0 }, .white);
+        rl.drawModelEx(self.model, self.position, rl.Vector3{ .x = 0.0, .y = 1.0, .z = 0.0 }, angle * (180.0 / std.math.pi), rl.Vector3{ .x = 1.0, .y = 1.0, .z = 1.0 }, .white);
     }
 
-    pub fn update(self: *Player) void {
+    pub fn update(self: *Player, deltaTime: f32) void {
         const anim = self.animations[self.currentAnimation];
 
-        self.currentFrame = @mod(self.currentFrame + 0.5, @as(f32, @floatFromInt(anim.frameCount)));
+        self.currentFrame = @mod(self.currentFrame + (self.animationSpeed * deltaTime), @as(f32, @floatFromInt(anim.frameCount)));
         rl.updateModelAnimation(self.model, anim, @as(i32, @intFromFloat(self.currentFrame)));
 
         var animeName: []const u8 = "";
@@ -107,8 +118,9 @@ pub const Player = struct {
         const mouseX = rl.getMouseDelta().x;
         const mouseY = rl.getMouseDelta().y;
 
-        self.rotation.y -= mouseX * self.sensitivity;
-        self.rotation.x -= mouseY * self.sensitivity;
+        const deltaSensitivity = self.sensitivity * deltaTime * 60.0;
+        self.rotation.y -= mouseX * deltaSensitivity;
+        self.rotation.x -= mouseY * deltaSensitivity;
 
         if (self.rotation.x > 0.8) self.rotation.x = 0.8;
         if (self.rotation.x < -0.8) self.rotation.x = -0.8;
@@ -126,41 +138,33 @@ pub const Player = struct {
         var isMoving = false;
 
         if (rl.isKeyDown(.w)) {
-            self.currentAnimation = 17;
+            self.currentAnimation = 9;
             moveVec.x += self.direction.x;
             moveVec.z += self.direction.z;
             isMoving = true;
         }
         if (rl.isKeyDown(.s)) {
-            self.currentAnimation = 16;
+            self.currentAnimation = 8;
             moveVec.x -= self.direction.x;
             moveVec.z -= self.direction.z;
             isMoving = true;
         }
 
         if (rl.isKeyDown(.a)) {
-            self.currentAnimation = 18;
+            self.currentAnimation = 11;
             moveVec.x += @cos(self.rotation.y);
             moveVec.z -= @sin(self.rotation.y);
             isMoving = true;
         }
         if (rl.isKeyDown(.d)) {
-            self.currentAnimation = 19;
+            self.currentAnimation = 12;
             moveVec.x -= @cos(self.rotation.y);
             moveVec.z += @sin(self.rotation.y);
             isMoving = true;
         }
 
-        if (rl.isMouseButtonPressed(.left) and isMoving) {
-            self.currentAnimation = 20;
-        }
-
-        if (rl.isMouseButtonPressed(.left) and !isMoving) {
-            self.currentAnimation = 1;
-        }
-
         if (!isMoving) {
-            self.currentAnimation = 4;
+            self.currentAnimation = default;
         }
 
         const moveMagnitude = @sqrt(moveVec.x * moveVec.x + moveVec.z * moveVec.z);
@@ -168,8 +172,8 @@ pub const Player = struct {
             moveVec.x /= moveMagnitude;
             moveVec.z /= moveMagnitude;
 
-            self.position.x += moveVec.x * self.speed;
-            self.position.z += moveVec.z * self.speed;
+            self.position.x += moveVec.x * self.speed * deltaTime;
+            self.position.z += moveVec.z * self.speed * deltaTime;
         }
 
         const cameraOrbitX = @sin(self.rotation.y);
@@ -185,6 +189,7 @@ pub const Player = struct {
     }
 
     pub fn deinit(self: *Player) void {
+        rl.unloadTexture(self.textture);
         rl.unloadModel(self.model);
         for (self.animations) |anim| {
             rl.unloadModelAnimation(anim);
@@ -227,9 +232,18 @@ pub fn main() anyerror!void {
     var mouseCursorEnabled = false;
     var lastEscapeState = false;
 
+    var lastFrameTime: f64 = rl.getTime();
+    var deltaTime: f32 = 0.0;
+
     rl.setTargetFPS(144);
 
     while (!rl.windowShouldClose()) {
+        const currentTime = rl.getTime();
+        deltaTime = @floatCast(currentTime - lastFrameTime);
+        lastFrameTime = currentTime;
+
+        if (deltaTime > 0.2) deltaTime = 0.2;
+
         const currentEscapeState = rl.isKeyDown(.escape);
         if (currentEscapeState and !lastEscapeState) {
             mouseCursorEnabled = !mouseCursorEnabled;
@@ -243,7 +257,7 @@ pub fn main() anyerror!void {
         lastEscapeState = currentEscapeState;
 
         if (!mouseCursorEnabled) {
-            player.update();
+            player.update(deltaTime);
         }
 
         rl.beginDrawing();
