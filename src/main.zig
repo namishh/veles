@@ -1,7 +1,7 @@
 const rl = @import("raylib");
 const std = @import("std");
 
-const default = 10;
+const default = 17;
 
 // Animation IDS
 // 2 == Death
@@ -98,7 +98,7 @@ pub const Player = struct {
         rl.drawModelEx(self.model, self.position, rl.Vector3{ .x = 0.0, .y = 1.0, .z = 0.0 }, angle * (180.0 / std.math.pi), rl.Vector3{ .x = 1.0, .y = 1.0, .z = 1.0 }, .white);
     }
 
-    pub fn update(self: *Player, deltaTime: f32) void {
+    pub fn update(self: *Player, world: *World, deltaTime: f32) void {
         const anim = self.animations[self.currentAnimation];
 
         self.currentFrame = @mod(self.currentFrame + (self.animationSpeed * deltaTime), @as(f32, @floatFromInt(anim.frameCount)));
@@ -138,26 +138,26 @@ pub const Player = struct {
         var isMoving = false;
 
         if (rl.isKeyDown(.w)) {
-            self.currentAnimation = 9;
+            self.currentAnimation = 16;
             moveVec.x += self.direction.x;
             moveVec.z += self.direction.z;
             isMoving = true;
         }
         if (rl.isKeyDown(.s)) {
-            self.currentAnimation = 8;
+            self.currentAnimation = 15;
             moveVec.x -= self.direction.x;
             moveVec.z -= self.direction.z;
             isMoving = true;
         }
 
         if (rl.isKeyDown(.a)) {
-            self.currentAnimation = 11;
+            self.currentAnimation = 13;
             moveVec.x += @cos(self.rotation.y);
             moveVec.z -= @sin(self.rotation.y);
             isMoving = true;
         }
         if (rl.isKeyDown(.d)) {
-            self.currentAnimation = 12;
+            self.currentAnimation = 14;
             moveVec.x -= @cos(self.rotation.y);
             moveVec.z += @sin(self.rotation.y);
             isMoving = true;
@@ -172,8 +172,14 @@ pub const Player = struct {
             moveVec.x /= moveMagnitude;
             moveVec.z /= moveMagnitude;
 
-            self.position.x += moveVec.x * self.speed * deltaTime;
-            self.position.z += moveVec.z * self.speed * deltaTime;
+            var newPos = self.position;
+            newPos.x += moveVec.x * self.speed * deltaTime;
+            newPos.z += moveVec.z * self.speed * deltaTime;
+
+            newPos.x = std.math.clamp(newPos.x, world.roomMin.x, world.roomMax.x);
+            newPos.z = std.math.clamp(newPos.z, world.roomMin.z, world.roomMax.z);
+
+            self.position = newPos;
         }
 
         const cameraOrbitX = @sin(self.rotation.y);
@@ -184,6 +190,10 @@ pub const Player = struct {
         self.camera.position.x = self.position.x - cameraOrbitX * self.cameraDistance;
         self.camera.position.y = self.position.y + heightOffset;
         self.camera.position.z = self.position.z - cameraOrbitZ * self.cameraDistance;
+
+        self.camera.position.x = std.math.clamp(self.camera.position.x, world.roomMin.x, world.roomMax.x);
+        self.camera.position.y = std.math.clamp(self.camera.position.y, world.roomMin.y, world.roomMax.y);
+        self.camera.position.z = std.math.clamp(self.camera.position.z, world.roomMin.z, world.roomMax.z);
 
         self.camera.target = self.position;
     }
@@ -199,10 +209,17 @@ pub const Player = struct {
 
 pub const World = struct {
     cubePosition: rl.Vector3,
+    roomMin: rl.Vector3,
+    roomMax: rl.Vector3,
 
     pub fn init() World {
+        const halfLength = 10.0;
+        const halfWidth = 10.0;
+        const height = 5.0;
         return World{
             .cubePosition = rl.Vector3{ .x = 3.0, .y = 1.0, .z = 3.0 },
+            .roomMin = rl.Vector3{ .x = -halfLength, .y = 0.0, .z = -halfWidth },
+            .roomMax = rl.Vector3{ .x = halfLength, .y = height, .z = halfWidth },
         };
     }
 
@@ -213,6 +230,16 @@ pub const World = struct {
 
         rl.drawCube(rl.Vector3{ .x = -5.0, .y = 1.0, .z = -5.0 }, 1.0, 2.0, 1.0, rl.Color.purple);
         rl.drawCube(rl.Vector3{ .x = 4.0, .y = 0.5, .z = -7.0 }, 2.0, 1.0, 2.0, rl.Color.yellow);
+
+        const center = rl.Vector3{
+            .x = (self.roomMin.x + self.roomMax.x) / 2.0,
+            .y = (self.roomMin.y + self.roomMax.y) / 2.0,
+            .z = (self.roomMin.z + self.roomMax.z) / 2.0,
+        };
+        const sizeX = self.roomMax.x - self.roomMin.x;
+        const sizeY = self.roomMax.y - self.roomMin.y;
+        const sizeZ = self.roomMax.z - self.roomMin.z;
+        rl.drawCubeWires(center, sizeX, sizeY, sizeZ, rl.Color.gray);
     }
 };
 
@@ -257,7 +284,7 @@ pub fn main() anyerror!void {
         lastEscapeState = currentEscapeState;
 
         if (!mouseCursorEnabled) {
-            player.update(deltaTime);
+            player.update(&world, deltaTime);
         }
 
         rl.beginDrawing();
