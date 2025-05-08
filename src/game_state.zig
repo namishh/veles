@@ -11,18 +11,37 @@ pub const GameState = struct {
     cursorEnabled: bool,
     lastEscapeState: bool,
 
+    // lighting and shadow system
+    shadowShader: rl.Shader,
+    pbrShader: rl.Shader,
+
     pub fn init() !GameState {
         const player = try Player.init();
+        const world = try World.init();
+
+        const shadowShader = try rl.loadShader("assets/shaders/shadowmap.fs", "assets/shaders/shadowmap.fs");
+        const pbrShader = try rl.loadShader("assets/shaders/pbr.fs", "assets/shaders/pbr.fs");
+
         return GameState{
             .cursorEnabled = false,
             .lastEscapeState = false,
             .player = player,
-            .world = World.init(),
+            .world = world,
+            .shadowShader = shadowShader,
+            .pbrShader = pbrShader,
         };
     }
 
     pub fn deinit(self: *GameState) void {
         self.player.deinit();
+        rl.unloadShader(self.shadowShader);
+        rl.unloadShader(self.pbrShader);
+    }
+
+    fn loadShadowMapRenderTexture(width: i32, height: i32) !rl.RenderTexture2D {
+        const target = rl.RenderTexture{ .id = rl.gl.rlLoadFramebuffer(), .texture = rl.Texture{ .id = 0, .width = width, .height = height, .mipmaps = 1, .format = 0 }, .depth = rl.gl.rlLoadTextureDepth(width, height, false) };
+        rl.gl.rlFramebufferAttach(target.id, target.depth.id, rl.gl.rlFramebufferAttachType.rl_attachment_depth, rl.gl.rlFramebufferAttachTextureType.rl_attachment_texture2d, 0);
+        return target;
     }
 
     pub fn update(self: *GameState, deltaTime: f32) void {

@@ -8,7 +8,7 @@ pub const World = struct {
     roomMin: rl.Vector3,
     roomMax: rl.Vector3,
 
-    pub fn init() World {
+    pub fn init() !World {
         const halfLength = 10.0;
         const halfWidth = 10.0;
         const height = 5.0;
